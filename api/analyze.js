@@ -1,14 +1,28 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { google } = require('googleapis');
+const csv = require('csv-parser');
+const { Readable } = require('stream');
 
-// Inicializar Gemini AI
-const genAI = new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY);
-
-// Variável global para cache dos dados das planilhas
-let spreadsheetData = [];
+let genAI = null;
 let drive = null;
+let spreadsheetData = [];
 
-// Função para inicializar Google Drive
+async function initializeGemini() {
+  try {
+    if (!process.env.VITE_GEMINI_API_KEY) {
+      console.log('⚠️ Chave da API do Gemini não configurada');
+      return null;
+    }
+    
+    genAI = new GoogleGenerativeAI(process.env.VITE_GEMINI_API_KEY);
+    console.log('✅ Gemini AI inicializado com sucesso');
+    return genAI;
+  } catch (error) {
+    console.error('❌ Erro ao inicializar Gemini:', error);
+    return null;
+  }
+}
+
 async function initializeGoogleDrive() {
   try {
     if (!process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || 
@@ -32,10 +46,6 @@ async function initializeGoogleDrive() {
 
     drive = google.drive({ version: 'v3', auth });
     console.log('✅ Google Drive API inicializada com sucesso');
-    
-    // Carregar dados das planilhas
-    await loadSpreadsheetData();
-    
     return drive;
   } catch (error) {
     console.error('❌ Erro ao inicializar Google Drive:', error);
@@ -43,16 +53,17 @@ async function initializeGoogleDrive() {
   }
 }
 
-// Função para carregar dados das planilhas
 async function loadSpreadsheetData() {
   try {
     if (!drive) {
-      console.log('Google Drive não inicializado');
-      return;
+      drive = await initializeGoogleDrive();
     }
 
-    console.log('Carregando dados das planilhas...');
-    
+    if (!drive) {
+      console.log('⚠️ Google Drive não disponível, usando dados em cache');
+      return spreadsheetData;
+    }
+
     let query = "mimeType='text/csv' or mimeType='application/vnd.ms-excel' or mimeType='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'";
     
     if (process.env.GOOGLE_DRIVE_FOLDER_ID) {
@@ -61,55 +72,83 @@ async function loadSpreadsheetData() {
 
     const response = await drive.files.list({
       q: query,
-      fields: 'files(id, name, modifiedTime, mimeType, size)'
+      fields: 'files(id, name, size, modifiedTime)'
     });
 
     const files = response.data.files;
-    console.log(`Encontrados ${files.length} arquivos de planilhas`);
+    console.log(`📁 Encontrados ${files.length} arquivos de planilhas`);
 
     spreadsheetData = [];
 
     for (const file of files) {
       try {
-        console.log(`Processando: ${file.name} (${file.mimeType})`);
-        
-        const fileData = await drive.files.get({
-          fileId: file.id,
-          alt: 'media'
-        });
-
-        if (file.mimeType === 'text/csv' || file.name.toLowerCase().endsWith('.csv')) {
-          const content = typeof fileData.data === 'string' ? fileData.data : fileData.data.toString();
-          const csvData = [];
+        if (file.name.toLowerCase().endsWith('.csv')) {
+          console.log(`📄 Processando: ${file.name}`);
           
-          const lines = content.split('\n').filter(line => line.trim());
-          for (const line of lines) {
-            const values = line.split(',').map(val => val.trim().replace(/"/g, ''));
-            csvData.push(values);
-          }
-
-          spreadsheetData.push({
-            fileName: file.name,
-            lastModified: new Date(file.modifiedTime).toLocaleDateString('pt-BR'),
-            data: csvData,
+          const fileResponse = await drive.files.get({
             fileId: file.id,
-            size: file.size
+            alt: 'media'
           });
 
-          console.log(`✅ Processado: ${file.name} - ${csvData.length} linhas`);
+          const csvData = fileResponse.data;
+          const rows = [];
+
+          await new Promise((resolve, reject) => {
+            const stream = Readable.from([csvData]);
+            stream
+              .pipe(csv())
+              .on('data', (row) => {
+                rows.push(row);
+              })
+              .on('end', () => {
+                resolve();
+              })
+              .on('error', (error) => {
+                console.error(`Erro ao processar CSV ${file.name}:`, error);
+                
+                const lines = csvData.split('\n');
+                if (lines.length > 1) {
+                  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+                  
+                  for (let i = 1; i < lines.length; i++) {
+                    if (lines[i].trim()) {
+                      const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+                      const row = {};
+                      headers.forEach((header, index) => {
+                        row[header] = values[index] || '';
+                      });
+                      rows.push(row);
+                    }
+                  }
+                }
+                resolve();
+              });
+          });
+
+          if (rows.length > 0) {
+            spreadsheetData.push({
+              fileName: file.name,
+              data: rows,
+              lastModified: file.modifiedTime,
+              rowCount: rows.length
+            });
+            console.log(`✅ ${file.name}: ${rows.length} linhas carregadas`);
+          }
         }
-      } catch (error) {
-        console.error(`❌ Erro ao processar ${file.name}:`, error.message);
+      } catch (fileError) {
+        console.error(`❌ Erro ao processar arquivo ${file.name}:`, fileError);
       }
     }
 
-    console.log(`🎉 Total de planilhas carregadas: ${spreadsheetData.length}`);
+    console.log(`📊 Total de planilhas carregadas: ${spreadsheetData.length}`);
+    return spreadsheetData;
   } catch (error) {
-    console.error('Erro ao carregar dados das planilhas:', error);
+    console.error('❌ Erro ao carregar dados das planilhas:', error);
+    return spreadsheetData;
   }
 }
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -131,27 +170,36 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Prompt é obrigatório' });
     }
 
-    // Inicializar Google Drive se ainda não foi inicializado
-    if (!drive) {
-      await initializeGoogleDrive();
+    // Inicializar Gemini se ainda não foi inicializado
+    if (!genAI) {
+      await initializeGemini();
     }
+
+    if (!genAI) {
+      return res.status(500).json({ error: 'Gemini AI não disponível' });
+    }
+
+    // Carregar dados das planilhas
+    await loadSpreadsheetData();
 
     // Preparar contexto com dados das planilhas
     let context = "Dados das planilhas de vendas disponíveis:\n\n";
     
     spreadsheetData.forEach((sheet) => {
       context += `=== ${sheet.fileName} ===\n`;
-      context += `Última modificação: ${sheet.lastModified}\n`;
+      context += `Última modificação: ${new Date(sheet.lastModified).toLocaleDateString('pt-BR')}\n`;
+      context += `Total de registros: ${sheet.rowCount}\n`;
       
       if (sheet.data && sheet.data.length > 0) {
-        context += `Cabeçalhos: ${sheet.data[0].join(', ')}\n`;
-        context += `Total de registros: ${sheet.data.length - 1}\n`;
+        const headers = Object.keys(sheet.data[0]);
+        context += `Cabeçalhos: ${headers.join(', ')}\n`;
         
-        const sampleRows = sheet.data.slice(1, 6);
+        const sampleRows = sheet.data.slice(0, 3);
         if (sampleRows.length > 0) {
           context += "Exemplos de dados:\n";
           sampleRows.forEach(row => {
-            context += `${row.join(', ')}\n`;
+            const values = headers.map(header => row[header] || '').join(', ');
+            context += `${values}\n`;
           });
         }
       }
@@ -160,7 +208,7 @@ export default async function handler(req, res) {
 
     const fullPrompt = `${context}\n\nPergunta do usuário: ${prompt}\n\nPor favor, analise os dados das planilhas e responda à pergunta do usuário com base nas informações disponíveis. Se precisar de cálculos ou análises específicas, use os dados fornecidos.`;
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
     const result = await model.generateContent(fullPrompt);
     const response = await result.response;
     
