@@ -38,6 +38,3 @@ backend/.env
 
 # CSV files (dados sensíveis)
 *.csv
-
-# Temporary files
-env.example
