@@ -1,119 +1,84 @@
-import { Upload, X, FileSpreadsheet } from "lucide-react";
+import { RefreshCw, FileSpreadsheet, Cloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 
-interface UploadedFile {
+interface DriveFile {
   id: string;
   name: string;
   size: string;
-  uploadedAt: string;
+  lastModified: string;
 }
 
 export const FileUploadSidebar = () => {
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+  const [files, setFiles] = useState<DriveFile[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const fileList = event.target.files;
-    if (!fileList) return;
-
-    const validExtensions = [".xlsx", ".csv", ".xls"];
-    const uploadPromises: Promise<void>[] = [];
-
-    Array.from(fileList).forEach((file) => {
-      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
-      
-      if (validExtensions.includes(ext)) {
-        const uploadPromise = (async () => {
-          try {
-            const filePath = `public/${Date.now()}-${file.name}`;
-            
-            const { data, error } = await supabase.storage
-              .from('spreadsheets')
-              .upload(filePath, file, {
-                cacheControl: '3600',
-                upsert: false
-              });
-
-            if (error) throw error;
-
-            const newFile: UploadedFile = {
-              id: data.path,
-              name: file.name,
-              size: (file.size / 1024).toFixed(2) + " KB",
-              uploadedAt: new Date().toLocaleTimeString("pt-BR", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-            };
-
-            setFiles((prev) => [...prev, newFile]);
-          } catch (error) {
-            console.error("Erro ao fazer upload:", error);
-            toast.error(`Falha ao carregar ${file.name}`);
-          }
-        })();
-
-        uploadPromises.push(uploadPromise);
-      } else {
-        toast.error(`Formato inválido: ${file.name}`);
+  // URL dinâmica baseada no ambiente
+  const getApiUrl = () => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hostname === 'localhost') {
+        return 'http://localhost:3001';
       }
-    });
-
-    if (uploadPromises.length > 0) {
-      await Promise.all(uploadPromises);
-      toast.success(`${uploadPromises.length} arquivo(s) carregado(s)`);
+      return window.location.origin;
     }
-
-    event.target.value = "";
+    return 'http://localhost:3001';
   };
 
-  const removeFile = async (id: string) => {
+  const loadDriveFiles = async () => {
+    setLoading(true);
     try {
-      const { error } = await supabase.storage
-        .from('spreadsheets')
-        .remove([id]);
-
-      if (error) throw error;
-
-      setFiles((prev) => prev.filter((file) => file.id !== id));
-      toast.success("Arquivo removido");
+      const response = await fetch(`${getApiUrl()}/api/drive/files`);
+      if (response.ok) {
+        const driveFiles = await response.json();
+        setFiles(driveFiles);
+        toast.success(`${driveFiles.length} planilhas encontradas no Google Drive`);
+      } else {
+        throw new Error('Falha ao carregar arquivos do Google Drive');
+      }
     } catch (error) {
-      console.error("Erro ao remover arquivo:", error);
-      toast.error("Falha ao remover arquivo");
+      console.error("Erro ao carregar arquivos do Drive:", error);
+      toast.error("Falha ao carregar arquivos do Google Drive");
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadDriveFiles();
+  }, []);
 
   return (
     <div className="w-64 h-screen border-r border-border flex flex-col" style={{ backgroundColor: "hsl(var(--sidebar-bg))" }}>
       <div className="p-4 border-b border-border">
-        <label htmlFor="file-upload" className="cursor-pointer">
-          <Button variant="outline" className="w-full" asChild>
-            <span>
-              <Upload className="w-4 h-4 mr-2" />
-              Carregar Planilha
-            </span>
-          </Button>
-        </label>
-        <input
-          id="file-upload"
-          type="file"
-          accept=".xlsx,.csv,.xls"
-          multiple
-          onChange={handleFileUpload}
-          className="hidden"
-        />
+        <Button 
+          variant="outline" 
+          className="w-full" 
+          onClick={loadDriveFiles}
+          disabled={loading}
+        >
+          {loading ? (
+            <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Cloud className="w-4 h-4 mr-2" />
+          )}
+          {loading ? "Carregando..." : "Atualizar Drive"}
+        </Button>
         <p className="text-xs text-muted-foreground mt-2 text-center">
-          .xlsx, .csv, .xls
+          Planilhas do Google Drive
         </p>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {files.length === 0 ? (
+        {loading ? (
+          <div className="text-center text-sm text-muted-foreground mt-8">
+            <RefreshCw className="w-12 h-12 mx-auto mb-2 opacity-30 animate-spin" />
+            <p>Carregando planilhas...</p>
+          </div>
+        ) : files.length === 0 ? (
           <div className="text-center text-sm text-muted-foreground mt-8">
             <FileSpreadsheet className="w-12 h-12 mx-auto mb-2 opacity-30" />
-            <p>Nenhum arquivo carregado</p>
+            <p>Nenhuma planilha encontrada no Google Drive</p>
           </div>
         ) : (
           files.map((file) => (
@@ -130,17 +95,12 @@ export const FileUploadSidebar = () => {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>{file.size}</span>
                     <span>•</span>
-                    <span>{file.uploadedAt}</span>
+                    <span>{file.lastModified}</span>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 flex-shrink-0"
-                  onClick={() => removeFile(file.id)}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
+                <div className="flex items-center">
+                  <Cloud className="w-4 h-4 text-blue-500" />
+                </div>
               </div>
             </div>
           ))

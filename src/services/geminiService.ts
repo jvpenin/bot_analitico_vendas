@@ -1,9 +1,19 @@
-const API_URL = 'http://localhost:3030';
+// URL dinâmica baseada no ambiente
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    // No browser, usar a URL atual ou localhost para desenvolvimento
+    if (window.location.hostname === 'localhost') {
+      return 'http://localhost:3001';
+    }
+    return window.location.origin;
+  }
+  return 'http://localhost:3001';
+};
 
 export const geminiService = {
   async analyze(prompt: string) {
     try {
-      const response = await fetch(`${API_URL}/api/analyze`, {
+      const response = await fetch(`${getApiUrl()}/api/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),

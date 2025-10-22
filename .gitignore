@@ -22,3 +22,22 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
+.env
+.env.local
+.env.production
+backend/.env
+
+# Google credentials
+*.json
+!package*.json
+!tsconfig*.json
+!components.json
+!vercel.json
+
+# CSV files (dados sensíveis)
+*.csv
+
+# Temporary files
+env.example
