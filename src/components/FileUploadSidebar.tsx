@@ -1,4 +1,4 @@
-import { RefreshCw, FileSpreadsheet, Cloud } from "lucide-react";
+import { RefreshCw, FileSpreadsheet, Cloud, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
@@ -32,13 +32,26 @@ export const FileUploadSidebar = () => {
     }
   };
 
+  const handleUploadClick = () => {
+    window.open('https://forms.gle/rB7FdginAyWuYY3D7', '_blank');
+  };
+
   useEffect(() => {
     loadDriveFiles();
   }, []);
 
   return (
     <div className="w-64 h-screen border-r border-border flex flex-col" style={{ backgroundColor: "hsl(var(--sidebar-bg))" }}>
-      <div className="p-4 border-b border-border">
+      <div className="p-4 border-b border-border space-y-3">
+        <Button 
+          variant="default" 
+          className="w-full" 
+          onClick={handleUploadClick}
+        >
+          <Upload className="w-4 h-4 mr-2" />
+          Enviar Arquivo
+        </Button>
+        
         <Button 
           variant="outline" 
           className="w-full" 
@@ -52,7 +65,8 @@ export const FileUploadSidebar = () => {
           )}
           {loading ? "Carregando..." : "Atualizar Drive"}
         </Button>
-        <p className="text-xs text-muted-foreground mt-2 text-center">
+        
+        <p className="text-xs text-muted-foreground text-center">
           Planilhas do Google Drive
         </p>
       </div>
