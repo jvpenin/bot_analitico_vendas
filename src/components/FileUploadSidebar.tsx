@@ -17,8 +17,11 @@ export const FileUploadSidebar = () => {
   const loadDriveFiles = async () => {
     setLoading(true);
     try {
-      const { apiCall } = await import('@/lib/api');
-      const driveFiles = await apiCall('/api/drive/files');
+      const response = await fetch('/api/drive/files');
+      if (!response.ok) {
+        throw new Error('Falha ao carregar arquivos do Google Drive');
+      }
+      const driveFiles = await response.json();
       setFiles(driveFiles);
       toast.success(`${driveFiles.length} planilhas encontradas no Google Drive`);
     } catch (error) {

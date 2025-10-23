@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { geminiService } from '@/services/geminiService';
+import { analyzeWithGemini } from '@/services/geminiService';
 
 export default function TestGemini() {
   const [prompt, setPrompt] = useState('');
@@ -17,12 +17,11 @@ export default function TestGemini() {
     setError('');
     setResponse('');
 
-    const result = await geminiService.analyze(prompt);
-
-    if (result.success) {
-      setResponse(result.response);
-    } else {
-      setError(result.error || 'Erro desconhecido');
+    try {
+      const result = await analyzeWithGemini(prompt);
+      setResponse(result);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Erro desconhecido');
     }
 
     setLoading(false);

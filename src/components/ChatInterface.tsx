@@ -54,14 +54,22 @@ export const ChatInterface = () => {
   setIsTyping(true);
 
   try {
-    // Chamada para a API usando utilitário que detecta o ambiente
-    const { apiCall } = await import("@/lib/api");
-    const result = await apiCall("/api/analyze", {
+    // Chamada para a API usando import estático
+    const response = await fetch("/api/analyze", {
       method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         prompt: input, // ENVIE APENAS O TEXTO ATUAL!
       }),
     });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const result = await response.json();
 
     setMessages((prev) => [
       ...prev,
