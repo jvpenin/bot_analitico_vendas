@@ -38,10 +38,10 @@ export default function TestGemini() {
         {/* Status do Backend */}
         <div className="mb-6 p-4 bg-blue-50 rounded border border-blue-200">
           <p className="text-sm text-blue-800">
-            ✅ Backend: <strong>http://localhost:3001</strong>
+            ✅ Backend: <strong>{typeof window !== 'undefined' ? (window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin) : 'API'}</strong>
           </p>
           <p className="text-sm text-blue-800">
-            ✅ Frontend: <strong>http://localhost:8080</strong>
+            ✅ Frontend: <strong>{typeof window !== 'undefined' ? window.location.origin : 'Frontend'}</strong>
           </p>
         </div>
 

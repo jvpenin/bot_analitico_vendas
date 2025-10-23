@@ -54,23 +54,14 @@ export const ChatInterface = () => {
   setIsTyping(true);
 
   try {
-    // Chamada para seu backend Gemini local
-    const response = await fetch("http://localhost:3001/api/analyze", {
+    // Chamada para a API usando utilitário que detecta o ambiente
+    const { apiCall } = await import("@/lib/api");
+    const result = await apiCall("/api/analyze", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({
         prompt: input, // ENVIE APENAS O TEXTO ATUAL!
       }),
     });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || "Erro ao processar resposta");
-    }
-
-    const result = await response.json();
 
     setMessages((prev) => [
       ...prev,

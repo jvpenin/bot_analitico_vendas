@@ -14,28 +14,13 @@ export const FileUploadSidebar = () => {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // URL dinâmica baseada no ambiente
-  const getApiUrl = () => {
-    if (typeof window !== 'undefined') {
-      if (window.location.hostname === 'localhost') {
-        return 'http://localhost:3001';
-      }
-      return window.location.origin;
-    }
-    return 'http://localhost:3001';
-  };
-
   const loadDriveFiles = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${getApiUrl()}/api/drive/files`);
-      if (response.ok) {
-        const driveFiles = await response.json();
-        setFiles(driveFiles);
-        toast.success(`${driveFiles.length} planilhas encontradas no Google Drive`);
-      } else {
-        throw new Error('Falha ao carregar arquivos do Google Drive');
-      }
+      const { apiCall } = await import('@/lib/api');
+      const driveFiles = await apiCall('/api/drive/files');
+      setFiles(driveFiles);
+      toast.success(`${driveFiles.length} planilhas encontradas no Google Drive`);
     } catch (error) {
       console.error("Erro ao carregar arquivos do Drive:", error);
       toast.error("Falha ao carregar arquivos do Google Drive");
