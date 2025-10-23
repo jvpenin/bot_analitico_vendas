@@ -191,25 +191,23 @@ app.post('/api/analyze', async (req, res) => {
       context += `=== ${sheet.fileName} ===\n`;
       context += `Última modificação: ${sheet.lastModified}\n`;
       
-      // Adicionar cabeçalhos e algumas linhas de exemplo
+      // Adicionar cabeçalhos e TODOS os dados
       if (sheet.data && sheet.data.length > 0) {
         context += `Cabeçalhos: ${sheet.data[0].join(', ')}\n`;
         context += `Total de registros: ${sheet.data.length - 1}\n`;
+        context += "Dados completos:\n";
         
-        // Adicionar algumas linhas de exemplo (máximo 5)
-        const sampleRows = sheet.data.slice(1, 6);
-        if (sampleRows.length > 0) {
-          context += "Exemplos de dados:\n";
-          sampleRows.forEach(row => {
-            context += `${row.join(', ')}\n`;
-          });
-        }
+        // Incluir TODOS os dados ao invés de apenas 5 linhas de exemplo
+        const dataRows = sheet.data.slice(1); // Pular cabeçalho
+        dataRows.forEach(row => {
+          context += `${row.join(', ')}\n`;
+        });
       }
       context += "\n";
     });
 
     // Combinar contexto com prompt do usuário
-    const fullPrompt = `${context}\n\nPergunta do usuário: ${prompt}\n\nPor favor, analise os dados das planilhas e responda à pergunta do usuário com base nas informações disponíveis. Se precisar de cálculos ou análises específicas, use os dados fornecidos.`;
+    const fullPrompt = `${context}\n\nPergunta do usuário: ${prompt}\n\nIMPORTANTE: Você tem acesso aos dados COMPLETOS das planilhas acima. Faça uma análise COMPLETA e PRECISA baseada em TODOS os dados fornecidos. NÃO faça estimativas ou use dados de exemplo - processe e analise todos os registros disponíveis. Quando solicitado sobre produtos mais vendidos, receitas, períodos específicos, etc., calcule os valores exatos baseados nos dados reais fornecidos.`;
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(fullPrompt);

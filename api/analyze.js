@@ -193,20 +193,18 @@ module.exports = async function handler(req, res) {
       if (sheet.data && sheet.data.length > 0) {
         const headers = Object.keys(sheet.data[0]);
         context += `Cabeçalhos: ${headers.join(', ')}\n`;
+        context += "Dados completos:\n";
         
-        const sampleRows = sheet.data.slice(0, 3);
-        if (sampleRows.length > 0) {
-          context += "Exemplos de dados:\n";
-          sampleRows.forEach(row => {
-            const values = headers.map(header => row[header] || '').join(', ');
-            context += `${values}\n`;
-          });
-        }
+        // Incluir TODOS os dados ao invés de apenas 3 linhas de exemplo
+        sheet.data.forEach(row => {
+          const values = headers.map(header => row[header] || '').join(', ');
+          context += `${values}\n`;
+        });
       }
       context += "\n";
     });
 
-    const fullPrompt = `${context}\n\nPergunta do usuário: ${prompt}\n\nPor favor, analise os dados das planilhas e responda à pergunta do usuário com base nas informações disponíveis. Se precisar de cálculos ou análises específicas, use os dados fornecidos.`;
+    const fullPrompt = `${context}\n\nPergunta do usuário: ${prompt}\n\nIMPORTANTE: Você tem acesso aos dados COMPLETOS das planilhas acima. Faça uma análise COMPLETA e PRECISA baseada em TODOS os dados fornecidos. NÃO faça estimativas ou use dados de exemplo - processe e analise todos os registros disponíveis. Quando solicitado sobre produtos mais vendidos, receitas, períodos específicos, etc., calcule os valores exatos baseados nos dados reais fornecidos.`;
 
     const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
     const result = await model.generateContent(fullPrompt);
